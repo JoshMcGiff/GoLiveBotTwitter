@@ -33,8 +33,8 @@ namespace ChatBot
     }
     class Program
     {
-        string clientID = ""; // Insert your client ID here:
-        string clientSecret = ""; // Insert your client secret here:
+        string clientID = ""; // Insert your Twitch client ID here:
+        string clientSecret = ""; // Insert your Twitch client secret here:
 
         private static TwitchAPI api;
         IAuthenticatedUser twitterUsername; 
@@ -47,7 +47,7 @@ namespace ChatBot
 
         Program()
         {
-            Auth.SetUserCredentials("", "", "", ""); // Insert: consumerKey, consumerSecret, userAccessToken and userAccessSecret in this order:
+            Auth.SetUserCredentials("", "", "", ""); // Insert your Twitter: consumerKey, consumerSecret, userAccessToken and userAccessSecret in this order:
             twitterUsername = User.GetAuthenticatedUser();
             var url = string.IsNullOrEmpty(twitterUsername.UserDTO.ProfileImageUrlHttps) ? twitterUsername.UserDTO.ProfileImageUrl : twitterUsername.UserDTO.ProfileImageUrlHttps;
             url = url.Replace("_normal", "");
