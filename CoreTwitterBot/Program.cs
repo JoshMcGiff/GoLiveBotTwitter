@@ -35,6 +35,7 @@ namespace ChatBot
     {
         string clientID = ""; // Insert your Twitch client ID here:
         string clientSecret = ""; // Insert your Twitch client secret here:
+        string streamer = "streamerName";
 
         private static TwitchAPI api;
         IAuthenticatedUser twitterUsername; 
@@ -187,7 +188,7 @@ namespace ChatBot
             api.Settings.SkipAutoServerTokenGeneration = false;
             api.Settings.AccessToken = GetAccessToken();
 
-            String response = Get("https://api.twitch.tv/helix/streams?user_login=streamer"); //Change to your Twitch username
+            String response = Get("https://api.twitch.tv/helix/streams?user_login=" + streamer); //Change to your Twitch username
             Console.WriteLine(response); 
             TwitchFile parsedFile = JsonConvert.DeserializeObject<TwitchFile>(response, settings);
             if (parsedFile.data.Length > 0)
@@ -227,8 +228,8 @@ namespace ChatBot
             nameChanged = true;
             var accountParams = new AccountUpdateProfileParameters
             {
-                Name = "🔴Live ttv/streamer",
-                Description = "🔴Live Now: twitch.tv/streamer \n" + savedDescription //Ensure that your description + the live update is less than the max (160 characters)
+                Name = "🔴Live ttv/" + streamer,
+                Description = "🔴Live Now: twitch.tv/" + streamer + "\n + savedDescription //Ensure that your description + the live update is less than the max (160 characters)
             };
             Account.UpdateAccountProfile(accountParams);
         }
@@ -242,7 +243,7 @@ namespace ChatBot
             nameChanged = false;
             var accountParams = new AccountUpdateProfileParameters
             {
-                Name = "Streamer",
+                Name = streamer,
                 Description = savedDescription
             };
             Account.UpdateAccountProfile(accountParams);
