@@ -1,5 +1,4 @@
-﻿// Written by Josh McGiff (@Fantazeeh on Twitter/Twitch)
-using System;
+﻿using System;
 using TwitchLib.Api;
 using System.Net;
 using System.IO;
