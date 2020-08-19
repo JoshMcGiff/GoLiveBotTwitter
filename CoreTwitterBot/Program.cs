@@ -1,5 +1,4 @@
-﻿// Written by Josh McGiff (@Fantazeeh on Twitter/Twitch)
-using System;
+﻿using System;
 using TwitchLib.Api;
 using System.Net;
 using System.IO;
@@ -34,20 +33,31 @@ namespace ChatBot
     }
     class Program
     {
+        string clientID = ""; // Insert your Twitch client ID here:
+        string clientSecret = ""; // Insert your Twitch client secret here:
+        string streamer = "streamerName";
+
         private static TwitchAPI api;
-        IAuthenticatedUser streamer;
+        IAuthenticatedUser twitterUsername; 
         string savedDescription;
-        bool nameReset = false;
-        bool nameChanged = false;
-        bool pictureReset = false;
-        bool pictureChanged = false;
-        Image original = Image.FromFile("SAVE THE ORIGINAL PROFILE PICTURE");
+        bool nameReset;
+        bool nameChanged;
+        bool pictureReset;
+        bool pictureChanged;
+        Image original;
 
         Program()
         {
-            Auth.SetUserCredentials(TwitterInfo.ConsumerKey, TwitterInfo.ConsumerSecret, TwitterInfo.UserAcessToken, TwitterInfo.UserAcessSecret);
-            streamer = User.GetAuthenticatedUser();
-            savedDescription = "Sample Twitter Bio";
+            Auth.SetUserCredentials("", "", "", ""); // Insert your Twitter: consumerKey, consumerSecret, userAccessToken and userAccessSecret in this order:
+            twitterUsername = User.GetAuthenticatedUser();
+            var url = string.IsNullOrEmpty(twitterUsername.UserDTO.ProfileImageUrlHttps) ? twitterUsername.UserDTO.ProfileImageUrl : twitterUsername.UserDTO.ProfileImageUrlHttps;
+            url = url.Replace("_normal", "");
+            using (WebClient client = new WebClient())
+            {
+                client.DownloadFile(new Uri(url),  @"profilepicture.jpg");
+                original = Image.FromFile("profilepicture.jpg");
+            }
+            savedDescription = twitterUsername.Description;
             nameReset = false;
             nameChanged = false;
             pictureReset = false;
@@ -64,7 +74,9 @@ namespace ChatBot
                 {
                     instance.ChangeBioAndName();
                     instance.ChangeProfilePictureTwitter();
-                }else
+                }
+
+                else
                 {
                     instance.ResetBioAndName();
                     instance.ResetProfilePictureTwitter();
@@ -80,35 +92,74 @@ namespace ChatBot
 
             pictureReset = false;
             pictureChanged = true;
-            var url = string.IsNullOrEmpty(streamer.UserDTO.ProfileImageUrlHttps) ? streamer.UserDTO.ProfileImageUrl : streamer.UserDTO.ProfileImageUrlHttps;
-            url = url.Replace("_normal", "");
-            Console.WriteLine(url);
-
-            using (WebClient client = new WebClient())
-            {
-                client.DownloadFile(new Uri(url), @"Desktop/profilepicture.jpg");
-            }
-
-            var profilePicStream = streamer.GetProfileImageStream();
+            var profilePicStream = twitterUsername.GetProfileImageStream();
             var tempStream = new MemoryStream();
             profilePicStream.CopyTo(tempStream);
             byte[] profilePic = new byte[tempStream.Length];
-            Rectangle portionOfImage = new Rectangle(0, 0, 400, 400); // Set the portion of the overlaying image that you would like to add to your profile picture when you are "live".
+            Rectangle portionOfImage = new Rectangle(0, 0, 400, 400);
 
             profilePicStream.Read(profilePic, 0, (int)tempStream.Length);
-            Image currentProfilePicture = Image.FromFile("Desktop/profilepicture.jpg"); //*THESE ARE EXAMPLE FILEPATHS - REPLACE WITH YOUR OWN IMAGES
-            Image liveUpdateTemplate = Image.FromFile("Desktop/redcircle.png"); //*THESE ARE EXAMPLE FILEPATHS - REPLACE WITH YOUR OWN IMAGES
-
-
+            Image currentProfilePicture = Image.FromFile( "profilepicture.jpg");
+            Image liveUpdateTemplate = Image.FromFile("CoreTwitterBot/CoreTwitterBot/redcircle.png");
             using (Graphics grfx = Graphics.FromImage(currentProfilePicture))
             {
                 grfx.DrawImage(liveUpdateTemplate, portionOfImage);
             }
-            ImageConverter imageConverter = new ImageConverter();
-            byte[] xByte = (byte[])imageConverter.ConvertTo(currentProfilePicture, typeof(byte[]));
-
-
+            System.IO.MemoryStream newStream = new System.IO.MemoryStream();
+            currentProfilePicture.Save(newStream, System.Drawing.Imaging.ImageFormat.Jpeg);
+            byte[] xByte = ReadToEnd(newStream);
             Account.UpdateProfileImage(xByte);
+        }
+        public static byte[] ReadToEnd(System.IO.Stream stream)
+        {
+            long originalPosition = 0;
+
+            if (stream.CanSeek)
+            {
+                originalPosition = stream.Position;
+                stream.Position = 0;
+            }
+
+            try
+            {
+                byte[] readBuffer = new byte[4096];
+
+                int totalBytesRead = 0;
+                int bytesRead;
+
+                while ((bytesRead = stream.Read(readBuffer, totalBytesRead, readBuffer.Length - totalBytesRead)) > 0)
+                {
+                    totalBytesRead += bytesRead;
+
+                    if (totalBytesRead == readBuffer.Length)
+                    {
+                        int nextByte = stream.ReadByte();
+                        if (nextByte != -1)
+                        {
+                            byte[] temp = new byte[readBuffer.Length * 2];
+                            Buffer.BlockCopy(readBuffer, 0, temp, 0, readBuffer.Length);
+                            Buffer.SetByte(temp, totalBytesRead, (byte)nextByte);
+                            readBuffer = temp;
+                            totalBytesRead++;
+                        }
+                    }
+                }
+
+                byte[] buffer = readBuffer;
+                if (readBuffer.Length != totalBytesRead)
+                {
+                    buffer = new byte[totalBytesRead];
+                    Buffer.BlockCopy(readBuffer, 0, buffer, 0, totalBytesRead);
+                }
+                return buffer;
+            }
+            finally
+            {
+                if (stream.CanSeek)
+                {
+                    stream.Position = originalPosition;
+                }
+            }
         }
 
         private void ResetProfilePictureTwitter()
@@ -116,41 +167,56 @@ namespace ChatBot
             if (pictureReset)
                 return;
 
-            pictureReset = true;
-            pictureChanged = false;
-
-            ImageConverter imageConverter = new ImageConverter();
-            byte[] xByte = (byte[])imageConverter.ConvertTo(original, typeof(byte[]));
-
-
+            pictureReset = false;
+            pictureChanged = true;
+            System.IO.MemoryStream newStream = new System.IO.MemoryStream();
+            original.Save(newStream, System.Drawing.Imaging.ImageFormat.Jpeg);
+            byte[] xByte = ReadToEnd(newStream);
             Account.UpdateProfileImage(xByte);
 
         }
+
         private bool checkIfOnline()
         {
 
             JsonSerializerSettings settings = new JsonSerializerSettings();
-
             settings.NullValueHandling = NullValueHandling.Ignore;
             settings.MissingMemberHandling = MissingMemberHandling.Ignore;
-
             api = new TwitchAPI();
-            api.Settings.ClientId = TwitchInfo.ClientId;
-            api.Settings.Secret = TwitchInfo.ClientSecret;
+            api.Settings.ClientId = clientID;
+            api.Settings.Secret = clientSecret;
             api.Settings.SkipAutoServerTokenGeneration = false;
             api.Settings.AccessToken = GetAccessToken();
 
-            String response = Get("https://api.twitch.tv/helix/streams?user_login=streamer"); //Change streamer to your Twitch username.
+            String response = Get("https://api.twitch.tv/helix/streams?user_login=" + streamer); //Change to your Twitch username
             Console.WriteLine(response); 
             TwitchFile parsedFile = JsonConvert.DeserializeObject<TwitchFile>(response, settings);
             if (parsedFile.data.Length > 0)
             {
+                Console.WriteLine("Currently Online" + parsedFile.data[0].type);
                 return true;
             }
             else
             {
+                Console.WriteLine("Currently Offline");
                 return false;
             }
+        }
+
+        private void ChangeProfilePicture()
+        {
+            var profilePicStream = twitterUsername.GetProfileImageStream(Tweetinvi.Models.ImageSize.normal);
+            byte[] profilePic = new byte[profilePicStream.Length];
+            profilePicStream.Read(profilePic, 0, (int)profilePicStream.Length);
+            Image currentProfilePicture = System.Drawing.Image.FromStream(profilePicStream);
+            Image liveUpdateTemplate = Image.FromFile("CoreTwitterBot/CoreTwitterBot/redcircle.png");
+
+
+            using (Graphics grfx = Graphics.FromImage(currentProfilePicture))
+            {
+                grfx.DrawImage(liveUpdateTemplate, 0, 0);
+            }
+
         }
 
         private void ChangeBioAndName()
@@ -162,8 +228,8 @@ namespace ChatBot
             nameChanged = true;
             var accountParams = new AccountUpdateProfileParameters
             {
-                Name = "🔴Live ttv/streamer", //*REPLACE WITH YOUR OWN USER NAME
-                Description = "🔴Live Now: twitch.tv/streamer \n" + savedDescription
+                Name = "🔴Live ttv/" + streamer,
+                Description = "🔴Live Now: twitch.tv/" + streamer + "\n + savedDescription //Ensure that your description + the live update is less than the max (160 characters)
             };
             Account.UpdateAccountProfile(accountParams);
         }
@@ -177,7 +243,7 @@ namespace ChatBot
             nameChanged = false;
             var accountParams = new AccountUpdateProfileParameters
             {
-                Name = "streamer", // This is the default Twitter username when offline
+                Name = streamer,
                 Description = savedDescription
             };
             Account.UpdateAccountProfile(accountParams);
@@ -187,8 +253,8 @@ namespace ChatBot
         {
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://id.twitch.tv/oauth2/token?");
 
-            string postData = "client_id=" + Uri.EscapeDataString(TwitchInfo.ClientId);
-            postData += "&client_secret=" + Uri.EscapeDataString(TwitchInfo.ClientSecret);
+            string postData = "client_id=" + Uri.EscapeDataString(clientID);
+            postData += "&client_secret=" + Uri.EscapeDataString(clientSecret);
             postData += "&grant_type=client_credentials";
             byte[] data = Encoding.ASCII.GetBytes(postData);
 
@@ -230,7 +296,7 @@ namespace ChatBot
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
                 request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-                request.Headers["Client-Id"] = TwitchInfo.ClientId;
+                request.Headers["Client-Id"] = clientID;
                 request.Headers["Authorization"] = "Bearer " + api.Settings.AccessToken;
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                 using (System.IO.Stream stream = response.GetResponseStream())
