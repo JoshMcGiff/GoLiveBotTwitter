@@ -1,5 +1,7 @@
 # GoLiveBotTwitter
 This application updates the user's Twitter name, bio and profile picture when they are live on Twitch. It also resets them when they are offline.
+
+
 ![Example](https://i.imgur.com/C2imVnY.jpg)
 ## How To Use
 1) Download the necessary files above. 
